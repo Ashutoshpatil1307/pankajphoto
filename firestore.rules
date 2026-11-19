@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    match /website_settings/{document=**} { allow read: if true; allow write: if isAdmin(); }
+    match /portfolio/{document=**} { allow read: if isAdmin() || resource.data.published == true || resource.data.deleted == true; allow create,update,delete: if isAdmin(); }
+    match /packages/{document=**} { allow read: if isAdmin() || resource.data.published == true; allow create,update,delete: if isAdmin(); }
+    match /videos/{document=**} { allow read: if isAdmin() || resource.data.published == true; allow create,update,delete: if isAdmin(); }
+    match /categories/{document=**} { allow read: if true; allow write: if isAdmin(); }
+    match /pages/{document=**} { allow read: if true; allow write: if isAdmin(); }
+    match /translations/{document=**} { allow read: if true; allow write: if isAdmin(); }
+    match /social_links/{document=**} { allow read: if true; allow write: if isAdmin(); }
+    match /faq/{document=**} { allow read: if true; allow write: if isAdmin(); }
+    match /reviews/{reviewId} {
+      allow read: if isAdmin() || resource.data.approved == true;
+      allow create: if request.resource.data.approved == false || !('approved' in request.resource.data);
+      allow update,delete: if isAdmin();
+    }
+    match /inquiries/{inquiryId} {
+      allow create: if request.resource.data.status == 'New' && request.resource.data.name is string && request.resource.data.phone is string;
+      allow read,update,delete: if isAdmin();
+    }
+    match /users/{userId} { allow read: if signedIn() && request.auth.uid == userId; allow write: if false; }
+  }
+}
